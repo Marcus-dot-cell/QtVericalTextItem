@@ -45,6 +45,7 @@ int main(int argc, char *argv[])
 #else
     CGraphicsEdit* item = new CGraphicsEdit();
     item->setTextInteractionFlags(Qt::TextEditorInteraction);
+    item->setAlignment(CGraphicsEdit::Direction_Center);
 #endif
 
     scene.addItem(item);
