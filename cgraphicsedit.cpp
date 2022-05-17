@@ -106,7 +106,7 @@ CGraphicsEdit::CGraphicsEdit(QGraphicsItem* parent):
     m_currColumn(0),
     m_selectedRegion(new SelectedRegion),
     m_undoStack(new QUndoStack(this)),
-    m_direction(Direction_Center)
+    m_direction(Direction_Top)
 {   
     setFocus();
     setAcceptDrops(true);
@@ -190,7 +190,7 @@ void CGraphicsEdit::paint(QPainter *painter, const QStyleOptionGraphicsItem *opt
                 sy = r.top() + adjust;
             } else if (m_direction == Direction_Center) {
                 qreal textHeight = getStrHeight(s);
-                sy = -textHeight/2;
+                sy = -textHeight/2 - adjust/2;
             } else {
                 qreal textHeight = getStrHeight(s);
                 sy = r.bottom() - adjust - textHeight;
@@ -229,9 +229,11 @@ void CGraphicsEdit::paint(QPainter *painter, const QStyleOptionGraphicsItem *opt
     qreal cursorX = r.left() + adjust + (m_cols - m_currColumn - 1)*cw;
     qreal cursorY = r.top() + adjust;
     if (m_direction == Direction_Center) {
-        cursorY = 0;
+        qreal textHeight = getStrHeight(m_textList.at(m_currColumn));
+        cursorY = -textHeight/2 - adjust;
     } else if (m_direction == Direction_Bottom) {
-        cursorY = r.bottom() - adjust;
+        qreal textHeight = getStrHeight(m_textList.at(m_currColumn));
+        cursorY = r.bottom() - adjust - textHeight;
     }
 
     foreach (QString l, m_textList) {
@@ -240,7 +242,7 @@ void CGraphicsEdit::paint(QPainter *painter, const QStyleOptionGraphicsItem *opt
             vx = r.top() + adjust;
         } else if (m_direction == Direction_Center) {
             qreal textHeight = getStrHeight(l);
-            vx = -textHeight/2 + adjust;
+            vx = -textHeight/2 - adjust/2;
         } else {
             qreal textHeight = getStrHeight(l);
             vx = r.bottom() - adjust - textHeight;
@@ -287,8 +289,10 @@ void CGraphicsEdit::paint(QPainter *painter, const QStyleOptionGraphicsItem *opt
                 hx = r.right() - (index + 1) * cw + (cw - w)/2 - adjust;
                 if (m_direction == Direction_Bottom) {
                     painter->drawText(QPointF(hx, vx + fontHeight*7/8), c);
-                } else {
+                } else if (m_direction == Direction_Top) {
                     painter->drawText(QPointF(hx, vx + fontHeight*2/3), c);
+                } else {
+                    painter->drawText(QPointF(hx, vx + fontHeight*7/8), c);
                 }
 
                 vx += fontHeight;
@@ -296,6 +300,7 @@ void CGraphicsEdit::paint(QPainter *painter, const QStyleOptionGraphicsItem *opt
             //光标y坐标
             if (isCurrLine && ((cursorIndex + 1) == m_postion)) {
                 cursorY = vx;
+                qDebug() << "cursorY: " << cursorY << ", pos: " << m_postion;
             }
             ++cursorIndex;
         }
@@ -388,13 +393,13 @@ void CGraphicsEdit::keyPressEvent(QKeyEvent *e)
 
     if (e->key() == Qt::Key_Backspace && !(e->modifiers() & ~Qt::ShiftModifier)) {
         do {
-            if (m_cols == 1 && (m_textList.at(0).isEmpty() || m_postion == 0))
-                break;
-
             if (m_selectedRegion->selected()) {
                 deleteSelectText();
                 break;
             }
+
+            if (m_currColumn == 0 && m_postion == 0)
+                break;
 
             QUndoCommand* command = new CTextChanged(this, m_textList, m_postion, m_cols, m_currColumn);
             m_undoStack->push(command);
