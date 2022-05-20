@@ -6,6 +6,42 @@
 #include <QMutex>
 #include <QClipboard>
 #include <QUndoStack>
+#include <QGraphicsTextItem>
+#include <QTextCharFormat>
+
+typedef struct SCharFormat{
+    QString  fontText = "MicroSoft YaHei";
+    QColor   fontColor = Qt::black;
+    int      fontSize = 10;
+    bool     bold = false;
+    bool     italic = false;
+    bool     overline = false;
+    bool     underline = false;
+    bool     strikeOut = false;
+    qreal    letterSpacing = 0;
+
+    void setFont(QFont* f) const {
+        f->setFamily(fontText);
+        f->setBold(bold);
+        f->setItalic(italic);
+        f->setOverline(overline);
+        f->setPointSize(fontSize);
+        f->setUnderline(underline);
+        f->setStrikeOut(strikeOut);
+        f->setLetterSpacing(QFont::AbsoluteSpacing, letterSpacing);
+    }
+
+    void fromFont(const QFont& f) {
+        fontText = f.family();
+        fontSize = f.pointSize();
+        bold = f.bold();
+        italic = f.italic();
+        overline = f.overline();
+        underline = f.underline();
+        strikeOut = f.strikeOut();
+        letterSpacing = f.letterSpacing();
+    }
+} SCharFormat;
 
 class QTimer;
 class SelectedRegion;
@@ -28,9 +64,18 @@ public:
     Qt::TextInteractionFlags textInteractionFlags() const;
     QString text() const;
     void setText(const QString& text);
-    void updateData(const QStringList& sl, int cols, int pos, int currCol);
+    void updateData(const QStringList& sl, int cols, int pos, int currCol, const QList<QList<SCharFormat>>& sf);
     int alignment() const { return m_direction; }
-    void setAlignment(TextDirection d);
+    void setAlignment(TextDirection d); 
+    QString toHtml() const;
+    void setBold(bool enabled);
+    void setItalic(bool enabled);
+    void setOverline(bool enabled);
+    void setUnderline(bool enabled);
+    void setFontSize(int size);
+    void setStrikeOut(bool enabled);
+    void setColumnSpacing(qreal spacing);
+    void setLetterSpacing(qreal spacing);
 protected:
     virtual QRectF boundingRect() const override;
     virtual void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = nullptr) override;
@@ -45,6 +90,8 @@ protected:
     virtual void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
 public slots:
     void onTimeout();
+    void onFontChanged(const QString& text);
+    void onColorSelected(const QColor &color);
 private:
     void processEvent(QEvent* event);
     bool isAcceptableInput(QKeyEvent* e);
@@ -56,7 +103,8 @@ private:
     void cut();
     void paste(QClipboard::Mode);
     //获取列宽
-    qreal getColWidth() const;
+    qreal getColWidth(int index) const;
+    qreal getColXPostion(int index) const;
     //获取选中文本
     QString getSelectedText() const;
     //删除选中文字
@@ -64,9 +112,8 @@ private:
     //更新选中文本
     void updateSelectedText(int beginCol, int endCol, int beginPos, int endPos);
     //获取字符串竖排高度
-    qreal getStrHeight(const QString& str) const;
+    qreal getStrHeight(int index) const;
 private:
-    QFont          m_font;
     QStringList    m_textList;
     QTimer         *m_timer;
     bool           m_showCursor;
@@ -82,6 +129,11 @@ private:
     bool           m_mousePressed = false;
     QUndoStack*    m_undoStack;
     TextDirection  m_direction;
+    SCharFormat    m_textFormat;
+    //兼容html
+    QGraphicsTextItem*   m_textItem;
+    QList<QList<SCharFormat>>   m_charFormats;
+    qreal         m_columnSpacing = 0;
 };
 
 #endif // CGRAPHICSEDIT_H
