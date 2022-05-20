@@ -11,6 +11,7 @@
 #include <QTextDocument>
 #include "widget.h"
 #include "cgraphicsedit.h"
+#include <QFontComboBox>
 
 void setTextCodec()
 {
@@ -34,26 +35,9 @@ int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     setTextCodec();
-#if 1
-    QGraphicsScene scene;
-    QGraphicsView view;
-    view.setScene(&scene);
-    view.setFixedSize(1024, 768);
-#if 0
-    CVericalTextItem* item = new CVericalTextItem();
-    item->setFont(QFont("Microsoft YaHei", 10));
-#else
-    CGraphicsEdit* item = new CGraphicsEdit();
-    item->setTextInteractionFlags(Qt::TextEditorInteraction);
-    item->setAlignment(CGraphicsEdit::Direction_Center);
-#endif
 
-    scene.addItem(item);
-    view.show();
-#else
     Widget w;
     w.show();
-#endif
 
     return a.exec();
 }
