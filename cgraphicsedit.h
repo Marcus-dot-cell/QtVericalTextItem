@@ -51,10 +51,18 @@ class CGraphicsEdit : public QGraphicsObject
     Q_OBJECT
 public:
     //对齐方式
-    enum TextDirection{
-        Direction_Top,
-        Direction_Center,
-        Direction_Bottom,
+    enum TextAlignment{
+        AlignmentTop,
+        AlignmentCenter,
+        AlignmentBottom,
+        AlignmentLeft,
+        AlignmentRight,
+        AlignmentHCenter,
+    };
+    //文字方向
+    enum TextOriection{
+        TextHorizontal,
+        TextVertical,
     };
 
     CGraphicsEdit(QGraphicsItem* parent = nullptr);
@@ -65,8 +73,8 @@ public:
     QString text() const;
     void setText(const QString& text);
     void updateData(const QStringList& sl, int cols, int pos, int currCol, const QList<QList<SCharFormat>>& sf);
-    int alignment() const { return m_direction; }
-    void setAlignment(TextDirection d); 
+    int alignment() const { return m_alignment; }
+    void setAlignment(TextAlignment d);
     QString toHtml() const;
     void setBold(bool enabled);
     void setItalic(bool enabled);
@@ -76,6 +84,7 @@ public:
     void setStrikeOut(bool enabled);
     void setColumnSpacing(qreal spacing);
     void setLetterSpacing(qreal spacing);
+    void setTextOriection(TextOriection oriection);
 protected:
     virtual QRectF boundingRect() const override;
     virtual void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = nullptr) override;
@@ -105,6 +114,9 @@ private:
     //获取列宽
     qreal getColWidth(int index) const;
     qreal getColXPostion(int index) const;
+    //获取行高
+    qreal getRowHeight(int index) const;
+    qreal getRowYPostion(int index) const;
     //获取选中文本
     QString getSelectedText() const;
     //删除选中文字
@@ -113,6 +125,12 @@ private:
     void updateSelectedText(int beginCol, int endCol, int beginPos, int endPos);
     //获取字符串竖排高度
     qreal getStrHeight(int index) const;
+    //获取字符串横排宽度
+    qreal getStrWidth(int index) const;
+    //垂直绘制
+    void verticalPaint(QPainter* painter, const QRectF& r);
+    //水平绘制
+    void horizontalPaint(QPainter* painter, const QRectF& r);
 private:
     QStringList    m_textList;
     QTimer         *m_timer;
@@ -128,7 +146,8 @@ private:
     QWidget*       contextWidget = nullptr;
     bool           m_mousePressed = false;
     QUndoStack*    m_undoStack;
-    TextDirection  m_direction;
+    TextAlignment  m_alignment;
+    TextOriection  m_oriection;
     SCharFormat    m_textFormat;
     //兼容html
     QGraphicsTextItem*   m_textItem;
