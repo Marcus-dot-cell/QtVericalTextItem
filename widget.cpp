@@ -37,6 +37,10 @@ Widget::Widget(QWidget *parent)
     rowspacingComboBox->addItems({"0", "6", "8", "9", "10", "20", "30", "40", "50", "60", "70", "80"});
     letterspacingComboBox = new QComboBox;
     letterspacingComboBox->addItems({"200", "100", "75","50", "25", "10", "0", "-10", "-25", "-50", "-75", "-100"});
+    letterspacingComboBox->setCurrentText("0");
+    directionComboBox = new QComboBox;
+    directionComboBox->addItems({"Horizontal", "Vertical"});
+    directionComboBox->setCurrentIndex(1);
 
     QGraphicsScene* scene = new QGraphicsScene();
     view = new QGraphicsView();
@@ -69,6 +73,7 @@ Widget::Widget(QWidget *parent)
     vLayout->addWidget(aligentComboBox);
     vLayout->addWidget(rowspacingComboBox);
     vLayout->addWidget(letterspacingComboBox);
+    vLayout->addWidget(directionComboBox);
     vLayout->addLayout(hLayout2);
     vLayout->addStretch();
 
@@ -90,6 +95,7 @@ Widget::Widget(QWidget *parent)
     connect(rowspacingComboBox, &QComboBox::currentTextChanged, this, &Widget::onRowSpaceChanged);
     connect(aligentComboBox, &QComboBox::currentTextChanged, this, &Widget::onaligentchanged);
     connect(letterspacingComboBox, &QComboBox::currentTextChanged, this, &Widget::onLetterSpaceChanged);
+    connect(directionComboBox, &QComboBox::currentTextChanged, this, &Widget::onDirectionChanged);
 }
 
 void Widget::onSelectColor()
@@ -153,12 +159,21 @@ void Widget::onRowSpaceChanged(const QString& text)
 void Widget::onaligentchanged(const QString& text)
 {
     int index = text == "Top" ? 0 : text == "Center" ? 1 : 2;
-    textEdit->setAlignment((CGraphicsEdit::TextDirection)index);
+    textEdit->setAlignment((CGraphicsEdit::TextAlignment)index);
 }
 
 void Widget::onLetterSpaceChanged(const QString& text)
 {
     int spacing = text.toInt();
     textEdit->setLetterSpacing(spacing);
+}
+
+void Widget::onDirectionChanged(const QString& text)
+{
+    if (text == "Horizontal") {
+        textEdit->setTextOriection(CGraphicsEdit::TextHorizontal);
+    } else {
+        textEdit->setTextOriection(CGraphicsEdit::TextVertical);
+    }
 }
 
