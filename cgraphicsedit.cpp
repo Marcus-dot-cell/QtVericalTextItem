@@ -12,7 +12,7 @@
 #include <QMutex>
 #include <QDebug>
 
-static const qreal DEFAULT_EDIT_HEIGHT = 300;
+static const qreal DEFAULT_EDIT_SIZE = 300;
 
 class CTextChanged : public QUndoCommand
 {
@@ -109,7 +109,8 @@ CGraphicsEdit::CGraphicsEdit(QGraphicsItem* parent):
     m_currColumn(0),
     m_selectedRegion(new SelectedRegion),
     m_undoStack(new QUndoStack(this)),
-    m_direction(Direction_Top)
+    m_alignment(AlignmentTop),
+    m_oriection(TextVertical)
 {   
     setAcceptDrops(true);
     setAcceptHoverEvents(true);
@@ -139,37 +140,34 @@ CGraphicsEdit::~CGraphicsEdit()
 QRectF CGraphicsEdit::boundingRect() const
 {
     const qreal adjust = 5.0;
-    qreal maxHeight = DEFAULT_EDIT_HEIGHT;
+    qreal maxSize = DEFAULT_EDIT_SIZE;
     for(int i = 0; i < m_textList.size(); ++i) {
-        qreal h = getStrHeight(i);
-        if (h > maxHeight) {
-            maxHeight = h;
+        qreal size;
+        if (m_oriection == TextVertical) {
+            size = getStrHeight(i);
+        } else {
+            size = getStrWidth(i);
+        }
+
+        if (size > maxSize) {
+            maxSize = size;
         }
     }
 
-    qreal w = getColXPostion(m_cols - 1);
-    QRectF r =  QRectF(-w/2 - adjust, -maxHeight/2 - adjust, w + 2*adjust, maxHeight + 2*adjust);
+    QRectF r;
+    if (m_oriection == TextVertical) {
+        qreal w = getColXPostion(m_cols - 1);
+        r =  QRectF(-w/2 - adjust, -maxSize/2 - adjust, w + 2*adjust, maxSize + 2*adjust);
+    } else {
+        qreal h = getRowYPostion(m_cols - 1);
+        r = QRectF(-maxSize/2 - adjust, -h/2 - adjust, maxSize + 2*adjust, h + 2*adjust);
+    }
     return r;
 }
 
-void CGraphicsEdit::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget )
+void CGraphicsEdit::verticalPaint(QPainter* painter, const QRectF& r)
 {
-    if (m_repaint) {
-        scene()->update();
-        m_repaint = false;
-    }
-
     const qreal adjust = 5.0;
-    const QRectF r = boundingRect();
-
-    //绘制虚线框
-    QPen pen;
-    pen.setColor(Qt::black);
-    pen.setStyle(Qt::DotLine);
-    painter->save();
-    painter->setPen(pen);
-    painter->drawRect(r);
-    painter->restore();
     //绘制选中区域
     int startCol = m_selectedRegion->startCol();
     int endCol = m_selectedRegion->endCol();
@@ -190,9 +188,9 @@ void CGraphicsEdit::paint(QPainter *painter, const QStyleOptionGraphicsItem *opt
             ep -= 1;
 
             qreal sy = 0;
-            if (m_direction == Direction_Top) {
+            if (m_alignment == AlignmentTop) {
                 sy = r.top() + adjust;
-            } else if (m_direction == Direction_Center) {
+            } else if (m_alignment == AlignmentCenter) {
                 qreal textHeight = getStrHeight(i);
                 sy = -textHeight/2 - adjust/2;
             } else {
@@ -231,15 +229,15 @@ void CGraphicsEdit::paint(QPainter *painter, const QStyleOptionGraphicsItem *opt
         painter->restore();
     }
     //绘制文字
-    painter->save();  
+    painter->save();
     int index = 0;
     qreal hx, vy;
     qreal cursorX = r.right() - adjust - getColXPostion(m_currColumn);
     qreal cursorY = r.top() + adjust;
-    if (m_direction == Direction_Center) {
+    if (m_alignment == AlignmentCenter) {
         qreal textHeight = getStrHeight(m_currColumn);
         cursorY = -textHeight/2 - adjust;
-    } else if (m_direction == Direction_Bottom) {
+    } else if (m_alignment == AlignmentBottom) {
         qreal textHeight = getStrHeight(m_currColumn);
         cursorY = r.bottom() - adjust - textHeight;
     }
@@ -247,9 +245,9 @@ void CGraphicsEdit::paint(QPainter *painter, const QStyleOptionGraphicsItem *opt
     for (int i = 0; i < m_textList.size(); i++) {
         QString l = m_textList.at(i);
         qreal vx = 0;
-        if (m_direction == Direction_Top) {
+        if (m_alignment == AlignmentTop) {
             vx = r.top() + adjust;
-        } else if (m_direction == Direction_Center) {
+        } else if (m_alignment == AlignmentCenter) {
             qreal textHeight = getStrHeight(i);
             vx = -textHeight/2 - adjust/2;
         } else {
@@ -293,7 +291,6 @@ void CGraphicsEdit::paint(QPainter *painter, const QStyleOptionGraphicsItem *opt
             bool underline = font.underline();
             bool overline = font.overline();
             bool strikeout = font.strikeOut();
-
             //把删除线，上下划线属性去除，效果不好，自定义实现
             font.setUnderline(false);
             font.setStrikeOut(false);
@@ -318,6 +315,7 @@ void CGraphicsEdit::paint(QPainter *painter, const QStyleOptionGraphicsItem *opt
                 painter->drawText(QPointF(hx, vx + m.ascent()), c);
                 vx += m.height() + font.letterSpacing();
             }
+
             //左划线
             if (underline) {
                 underEndY = vx;
@@ -365,6 +363,167 @@ void CGraphicsEdit::paint(QPainter *painter, const QStyleOptionGraphicsItem *opt
     }
     painter->drawLine(QPointF(cursorX, cursorY), QPointF(cursorX + getColWidth(m_currColumn), cursorY));
     painter->restore();
+}
+
+void CGraphicsEdit::horizontalPaint(QPainter* painter, const QRectF& r)
+{
+    const qreal adjust = 5.0;
+    //绘制选中区域
+    int startCol = m_selectedRegion->startCol();
+    int endCol = m_selectedRegion->endCol();
+    int startPos = m_selectedRegion->startPos();
+    int endPos = m_selectedRegion->endPos();
+    if (startCol == endCol && startPos > endPos) {
+        qSwap(startPos, endPos);
+    }
+    if (m_selectedRegion->selected()) {
+        painter->save();
+        for (int i = startCol; i <= endCol; ++i) {
+            const QString s = m_textList.at(i);
+            const qreal rowy = (i == 0 ? 0 : getRowYPostion(i - 1));
+            const qreal rh = getRowHeight(i);
+            int ep = (i != endCol ? s.length() : endPos);
+            int bp = (i != startCol ? 0 : startPos);
+            if (ep == bp) continue;
+            ep -= 1;
+
+            qreal sx = 0;
+            if (m_alignment == AlignmentRight) {
+                qreal textWidth = getStrWidth(i);
+                sx = r.right() - adjust - textWidth;
+            } else if (m_alignment == AlignmentHCenter) {
+                qreal textWidth = getStrWidth(i);
+                sx = r.left() + adjust + textWidth/2;
+            } else {
+                sx = r.left() + adjust;
+            }
+
+            qreal sy = r.top() + rowy + adjust;
+            qreal startx = sx, endx = sx;
+            for (int j = 0; j < s.length(); j++) {
+                SCharFormat sf = m_charFormats.at(i).at(j);
+                QFont font;
+                sf.setFont(&font);
+                QFontMetricsF m(font);
+                if (j == bp) {
+                    startx = sx;
+                }
+                QChar c = s.at(j);
+                sx += m.width(c) + sf.letterSpacing;
+                if (j == ep) {
+                    endx = sx;
+                }
+            }
+
+            if (startx != endx) {
+                QPen pen;
+                pen.setWidth(0);
+                painter->setPen(pen);
+                painter->setBrush(QColor("#0078D7"));
+                painter->drawRect(QRectF(startx, sy, endx - startx, rh));
+            }
+        }
+        painter->restore();
+    }
+    //绘制文字
+    painter->save();
+    qreal cursory = r.top() + adjust + getRowYPostion(m_currColumn);
+    qreal cursorx = r.left() + adjust;
+    if (m_alignment == AlignmentRight) {
+        qreal textWidth = getStrWidth(m_currColumn);
+        cursorx = r.right() - adjust - textWidth;
+    } else if (m_alignment == AlignmentHCenter) {
+        qreal textWidth = getStrWidth(m_currColumn);
+        cursorx = r.left() + adjust + textWidth/2;
+    }
+
+    for (int i = 0; i < m_textList.size(); i++) {
+        QString l = m_textList.at(i);
+        qreal textx = r.left() + adjust;
+        const qreal texty = r.top() + getRowYPostion(i);
+        if (m_alignment == AlignmentRight) {
+            qreal textWidth = getStrWidth(i);
+            textx = r.right() - adjust - textWidth;
+        } else if (m_alignment == AlignmentHCenter) {
+            qreal textWidth = getStrWidth(m_currColumn);
+            textx = r.left() + adjust + textWidth/2;
+        }
+
+        bool isCurrLine = (i == m_currColumn);
+        for(int j = 0; j < l.size(); ++j) {
+            QChar c = l.at(j);
+            QPen  textPen;
+            if (m_selectedRegion->selected() && i >= startCol && i <= endCol) {
+                if (startCol == endCol) {
+                    if (j >= startPos && j < endPos) {
+                        textPen.setColor(QColor("#FFF8F0"));
+                    } else {
+                        textPen.setColor(m_charFormats.at(i).at(j).fontColor);
+                    }
+                } else {
+                    if (i == startCol)
+                        if (j >= startPos)
+                            textPen.setColor(QColor("#FFF8F0"));
+                        else
+                            textPen.setColor(m_charFormats.at(i).at(j).fontColor);
+                    else if (i == endCol)
+                        if (j < endPos)
+                            textPen.setColor(QColor("#FFF8F0"));
+                        else
+                            textPen.setColor(m_charFormats.at(i).at(j).fontColor);
+                    else
+                        textPen.setColor(QColor("#FFF8F0"));
+                }
+            } else {
+                textPen.setColor(m_charFormats.at(i).at(j).fontColor);
+            }
+            painter->setPen(textPen);
+            QFont font;
+            m_charFormats.at(i).at(j).setFont(&font);
+            painter->setFont(font);
+            QFontMetricsF m(font);
+
+            painter->drawText(QPointF(textx, texty - m.descent()), c);
+            textx += m.width(c) + font.letterSpacing();
+
+            //光标x坐标
+            if (isCurrLine && ((j + 1) == m_postion)) {
+                cursorx = textx;
+            }
+        }
+    }
+    painter->restore();
+    //绘制光标
+    painter->save();
+    if (!m_showCursor) {
+        QPen pen2;
+        pen2.setStyle(Qt::SolidLine);
+        pen2.setColor(Qt::transparent);
+        painter->setPen(pen2);
+    }
+    painter->drawLine(QPointF(cursorx, cursory), QPointF(cursorx, cursory - getRowHeight(m_currColumn)));
+    painter->restore();
+}
+
+void CGraphicsEdit::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget )
+{
+    Q_UNUSED(option);
+    Q_UNUSED(widget);
+
+    const QRectF r = boundingRect();
+    //绘制虚线框
+    QPen pen;
+    pen.setColor(Qt::black);
+    pen.setStyle(Qt::DotLine);
+    painter->save();
+    painter->setPen(pen);
+    painter->drawRect(r);
+    painter->restore();
+    if (m_oriection == TextVertical) {
+        verticalPaint(painter, r);
+    } else {
+        horizontalPaint(painter, r);
+    }
 }
 
 void CGraphicsEdit::keyPressEvent(QKeyEvent *e)
@@ -440,7 +599,7 @@ void CGraphicsEdit::keyPressEvent(QKeyEvent *e)
                 m_postion--;
             }
         } while (0);
-        m_repaint = true;
+        scene()->update();
         goto accept;
     } else if (e->key() == Qt::Key_Enter || e->key() == Qt::Key_Return) {
         deleteSelectText();
@@ -461,7 +620,7 @@ void CGraphicsEdit::keyPressEvent(QKeyEvent *e)
         m_textList.insert(m_currColumn, rStr);
         m_charFormats.insert(m_currColumn, rsf);
         m_postion = 0;
-        m_repaint = true;
+        scene()->update();
         goto accept;
     } else if (e->key() == Qt::Key_Delete) {
         do {
@@ -494,7 +653,7 @@ void CGraphicsEdit::keyPressEvent(QKeyEvent *e)
                 m_charFormats[m_currColumn].swap(sf);
             }
         }while (0);
-        m_repaint = true;
+        scene()->update();
         goto accept;
     } else if (e->key() == Qt::Key_Home) {
         m_postion = 0;
@@ -507,51 +666,96 @@ void CGraphicsEdit::keyPressEvent(QKeyEvent *e)
         goto accept;
     } else if (e->key() == Qt::Key_Left) {
         do {
-            if (m_currColumn + 1 >= m_cols)
-                break;
-            QString ls = m_textList.at(m_currColumn + 1);
-            if (ls.length() < m_postion) {
-                m_postion = ls.length();
+            if (m_oriection == TextVertical) {
+                if (m_currColumn + 1 >= m_cols)
+                    break;
+                QString ls = m_textList.at(m_currColumn + 1);
+                if (ls.length() < m_postion) {
+                    m_postion = ls.length();
+                }
+                m_currColumn++;
+            } else {
+                if (m_postion == 0 && m_currColumn == 0)
+                    break;
+                if (m_postion == 0) {
+                    m_currColumn--;
+                    m_postion = m_textList.at(m_currColumn).length();
+                } else {
+                    m_postion--;
+                }
             }
-            m_currColumn++;
         }while(0);
         m_selectedRegion->clean();
         goto accept;
     } else if (e->key() == Qt::Key_Right) {
         do {
-            if (m_currColumn == 0)
-                break;
-            QString rs = m_textList.at(m_currColumn - 1);
-            if (m_postion > rs.length()) {
-                m_postion = rs.length();
+            if (m_oriection == TextVertical) {
+                if (m_currColumn == 0)
+                    break;
+                QString rs = m_textList.at(m_currColumn - 1);
+                if (m_postion > rs.length()) {
+                    m_postion = rs.length();
+                }
+                m_currColumn--;
+            } else {
+                QString s = m_textList.at(m_currColumn);
+                if (m_postion == s.length() && m_currColumn + 1 == m_cols)
+                    break;
+                if (m_postion == s.length()) {
+                    m_currColumn++;
+                    m_postion = 0;
+                } else {
+                    m_postion++;
+                }
             }
-            m_currColumn--;
+
         }while(0);
         m_selectedRegion->clean();
         goto accept;
     } else if (e->key() == Qt::Key_Up) {
         do {
-            if (m_postion == 0 && m_currColumn == 0)
-                break;
-            if (m_postion == 0) {
-                m_currColumn--;
-                m_postion = m_textList.at(m_currColumn).length();
+            if (m_oriection == TextVertical) {
+                if (m_postion == 0 && m_currColumn == 0)
+                    break;
+                if (m_postion == 0) {
+                    m_currColumn--;
+                    m_postion = m_textList.at(m_currColumn).length();
+                } else {
+                    m_postion--;
+                }
             } else {
-                m_postion--;
+                if (m_currColumn == 0)
+                    break;
+                QString rs = m_textList.at(m_currColumn - 1);
+                if (m_postion > rs.length()) {
+                    m_postion = rs.length();
+                }
+                m_currColumn--;
             }
+
         } while(0);
         m_selectedRegion->clean();
         goto accept;
     }else if (e->key() == Qt::Key_Down) {
         do {
-            QString s = m_textList.at(m_currColumn);
-            if (m_postion == s.length() && m_currColumn + 1 == m_cols)
-                break;
-            if (m_postion == s.length()) {
-                m_currColumn++;
-                m_postion = 0;
+            if (m_oriection == TextVertical) {
+                QString s = m_textList.at(m_currColumn);
+                if (m_postion == s.length() && m_currColumn + 1 == m_cols)
+                    break;
+                if (m_postion == s.length()) {
+                    m_currColumn++;
+                    m_postion = 0;
+                } else {
+                    m_postion++;
+                }
             } else {
-                m_postion++;
+                if (m_currColumn + 1 >= m_cols)
+                    break;
+                QString ls = m_textList.at(m_currColumn + 1);
+                if (ls.length() < m_postion) {
+                    m_postion = ls.length();
+                }
+                m_currColumn++;
             }
 
         }while(0);
@@ -608,7 +812,7 @@ void CGraphicsEdit::inputMethodEvent(QInputMethodEvent *event)
         currText.insert(m_postion, event->commitString());
         m_textList[m_currColumn] = currText;
         m_postion += event->commitString().length();
-        m_repaint = true;
+        scene()->update();
     }
 }
 
@@ -738,48 +942,89 @@ void CGraphicsEdit::mousePressEvent(QGraphicsSceneMouseEvent *event)
         QPointF p = event->pos();
         const QRectF r = boundingRect();
         const qreal adjust = 5.0;
+        qDebug() << "boundingRECT:" << r;
         for (int i = 0; i < m_cols; i++) {
-            qreal rx = r.right() - adjust - (i == 0 ? 0 : getColXPostion(i - 1));
-            qreal lx = r.right() - adjust - getColXPostion(i);
-            if (p.x() <= rx && p.x() > lx) {
-                m_currColumn = i;
-                //计算y坐标位置
-                qreal y = r.top() + adjust;
-                QString s = m_textList.at(i);
-                if (m_direction == Direction_Center) {
-                    qreal textHeight = getStrHeight(i);
-                    y = -textHeight/2;
-                } else if (m_direction == Direction_Bottom) {
-                    qreal textHeight = getStrHeight(i);
-                    y = r.bottom() - adjust - textHeight;
-                }
-                qreal prevY = y;
+            if (m_oriection == TextVertical) {
+                qreal rx = r.right() - adjust - (i == 0 ? 0 : getColXPostion(i - 1));
+                qreal lx = r.right() - adjust - getColXPostion(i);
+                if (p.x() <= rx && p.x() > lx) {
+                    m_currColumn = i;
+                    //计算y坐标位置
+                    qreal y = r.top() + adjust;
+                    QString s = m_textList.at(i);
+                    if (m_alignment == AlignmentCenter) {
+                        qreal textHeight = getStrHeight(i);
+                        y = -textHeight/2;
+                    } else if (m_alignment == AlignmentBottom) {
+                        qreal textHeight = getStrHeight(i);
+                        y = r.bottom() - adjust - textHeight;
+                    }
 
-                if (s.isEmpty() || p.y() < y) {
-                    m_postion = 0;
-                } else {
-                    for (int n = 0; n < s.length(); ++n) {
-                        SCharFormat sf = m_charFormats.at(i).at(n);
-                        QFont font;
-                        sf.setFont(&font);
-                        QFontMetricsF m(font);
-                        QChar c = s.at(n);
-                        if (c < 128) {
-                            y += m.width(c);
-                        } else {
-                            y += m.height();
+                    if (s.isEmpty() || p.y() < y) {
+                        m_postion = 0;
+                    } else {
+                        for (int n = 0; n < s.length(); ++n) {
+                            qreal prevY = y;
+                            SCharFormat sf = m_charFormats.at(i).at(n);
+                            QFont font;
+                            sf.setFont(&font);
+                            QFontMetricsF m(font);
+                            QChar c = s.at(n);
+                            if (c < 128) {
+                                y += m.width(c);
+                            } else {
+                                y += m.height();
+                            }
+                            y += sf.letterSpacing;
+                            if (p.y() >= prevY && p.y() < y) {
+                                m_postion = n + 1;
+                                break;
+                            }
                         }
-                        y += sf.letterSpacing;
-                        if (p.y() >= prevY && p.y() < y) {
-                            m_postion = n + 1;
-                            break;
+                        if (s.length() > 0 && p.y() > y) {
+                            m_postion = s.length();
                         }
                     }
-                    if (s.length() > 0 && p.y() > y) {
-                        m_postion = s.length();
-                    }
+                    break;
                 }
-                break;
+            } else {
+                qreal ty = r.top() - adjust + (i == 0 ? 0 : getRowYPostion(i - 1));
+                qreal by = r.top() - adjust + getRowYPostion(i);
+                if (p.y() >= ty && p.y() < by) {
+                    m_currColumn = i;
+                    //计算x坐标位置
+                    qreal x = r.left() + adjust;
+                    QString s = m_textList.at(i);
+                    if (m_alignment == AlignmentRight) {
+                        qreal textWidth = getStrWidth(i);
+                        x = r.right() - adjust - textWidth;
+                    } else if (m_alignment == AlignmentHCenter) {
+                        qreal textWidth = getStrWidth(i);
+                        x = r.left() + adjust + textWidth/2;
+                    }
+
+                    if (s.isEmpty() || p.x() < x) {
+                        m_postion = 0;
+                    } else {
+                        for (int n = 0; n < s.length(); ++n) {
+                            qreal prevx = x;
+                            SCharFormat sf = m_charFormats.at(i).at(n);
+                            QFont font;
+                            sf.setFont(&font);
+                            QFontMetricsF m(font);
+                            QChar c = s.at(n);
+                            x += m.width(c) + sf.letterSpacing;
+                            if (p.x() >= prevx && p.x() < x) {
+                                m_postion = n;
+                                break;
+                            }
+                        }
+                        if (s.length() > 0 && p.x() > x) {
+                            m_postion = s.length();
+                        }
+                    }
+                    break;
+                }
             }
         }
         m_selectedRegion->setStartCol(m_currColumn);
@@ -797,46 +1042,87 @@ void CGraphicsEdit::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
         const QRectF r = boundingRect();
         const qreal adjust = 5.0;
         for (int i = 0; i < m_cols; i++) {
-            qreal rx = r.right() - adjust - (i == 0 ? 0 : getColXPostion(i - 1));
-            qreal lx = r.right() - adjust - getColXPostion(i);
-            if (p.x() <= rx && p.x() > lx) {
-                m_currColumn = i;
-                //计算y坐标位置
-                qreal y = r.top() + adjust;
-                QString s = m_textList.at(i);
-                if (m_direction == Direction_Center) {
-                    qreal textHeight = getStrHeight(i);
-                    y = -textHeight/2;
-                } else if (m_direction == Direction_Bottom) {
-                    qreal textHeight = getStrHeight(i);
-                    y = r.bottom() - adjust - textHeight;
-                }
-                qreal prevY = y;
-                if (s.isEmpty() || p.y() < y) {
-                    m_postion = 0;
-                } else {
-                    for (int n = 0; n < s.length(); ++n) {
-                        SCharFormat sf = m_charFormats.at(i).at(n);
-                        QFont font;
-                        sf.setFont(&font);
-                        QFontMetricsF m(font);
-                        QChar c = s.at(n);
-                        if (c < 128) {
-                            y += m.width(c);
-                        } else {
-                            y += m.height();
+            if (m_oriection == TextVertical) {
+                qreal rx = r.right() - adjust - (i == 0 ? 0 : getColXPostion(i - 1));
+                qreal lx = r.right() - adjust - getColXPostion(i);
+                if (p.x() <= rx && p.x() > lx) {
+                    m_currColumn = i;
+                    //计算y坐标位置
+                    qreal y = r.top() + adjust;
+                    QString s = m_textList.at(i);
+                    if (m_alignment == AlignmentCenter) {
+                        qreal textHeight = getStrHeight(i);
+                        y = -textHeight/2;
+                    } else if (m_alignment == AlignmentBottom) {
+                        qreal textHeight = getStrHeight(i);
+                        y = r.bottom() - adjust - textHeight;
+                    }
+
+                    if (s.isEmpty() || p.y() < y) {
+                        m_postion = 0;
+                    } else {
+                        for (int n = 0; n < s.length(); ++n) {
+                            qreal prevY = y;
+                            SCharFormat sf = m_charFormats.at(i).at(n);
+                            QFont font;
+                            sf.setFont(&font);
+                            QFontMetricsF m(font);
+                            QChar c = s.at(n);
+                            if (c < 128) {
+                                y += m.width(c);
+                            } else {
+                                y += m.height();
+                            }
+                            y += sf.letterSpacing;
+                            if (p.y() >= prevY && p.y() < y) {
+                                m_postion = n;
+                                break;
+                            }
                         }
-                        y += sf.letterSpacing;
-                        if (p.y() >= prevY && p.y() < y) {
-                            m_postion = n + 1;
-                            break;
+                        if (s.length() > 0 && p.y() > y) {
+                            m_postion = s.length();
                         }
                     }
-                    if (s.length() > 0 && p.y() > y) {
-                        m_postion = s.length();
-                    }
+                    break;
                 }
-                break;
+            } else {
+                qreal ty = r.top() - adjust + (i == 0 ? 0 : getRowYPostion(i - 1));
+                qreal by = r.top() - adjust + getRowYPostion(i);
+                if (p.y() >= ty && p.y() < by) {
+                    m_currColumn = i;
+                    //计算x坐标位置
+                    qreal x = r.left() + adjust;
+                    QString s = m_textList.at(i);
+                    if (m_alignment == AlignmentRight) {
+                        qreal textWidth = getStrWidth(i);
+                        x = r.right() - adjust - textWidth;
+                    } else if (m_alignment == AlignmentHCenter) {
+                        qreal textWidth = getStrWidth(i);
+                        x = r.left() + adjust + textWidth/2;
+                    }
+
+                    if (s.isEmpty() || p.x() < x) {
+                        m_postion = 0;
+                    } else {
+                        for (int n = 0; n < s.length(); ++n) {
+                            qreal prevx = x;
+                            SCharFormat sf = m_charFormats.at(i).at(n);
+                            QFont font;
+                            sf.setFont(&font);
+                            QFontMetricsF m(font);
+                            QChar c = s.at(n);
+                            x += m.width(c) + sf.letterSpacing;
+                            if (p.x() >= prevx && p.x() < x) {
+                                m_postion = n + 1;
+                                break;
+                            }
+                        }
+                        if (s.length() > 0 && p.x() > x) {
+                            m_postion = s.length();
+                        }
+                    }
+                    break;
+                }
             }
         }
         m_selectedRegion->setEndCol(m_currColumn);
@@ -934,7 +1220,7 @@ void CGraphicsEdit::cut()
 {
     copy();
     deleteSelectText();
-    m_repaint = true;
+    scene()->update();
 }
 
 void CGraphicsEdit::paste(QClipboard::Mode)
@@ -965,7 +1251,7 @@ void CGraphicsEdit::paste(QClipboard::Mode)
             m_currColumn += textList.size() - 1;
         }
     }while(0);
-    m_repaint = true;
+    scene()->update();
 }
 
 QString CGraphicsEdit::getSelectedText() const
@@ -1110,14 +1396,14 @@ void CGraphicsEdit::updateData(const QStringList& sl, int cols, int pos, int cur
             m_charFormats << lsf;
         }
     }
-    m_repaint = true;
+    scene()->update();
     update();
 }
 
-void CGraphicsEdit::setAlignment(TextDirection d)
+void CGraphicsEdit::setAlignment(TextAlignment d)
 {
-    m_direction = d;
-    m_repaint = true;
+    m_alignment = d;
+    scene()->update();
     update();
 }
 
@@ -1140,6 +1426,23 @@ qreal CGraphicsEdit::getStrHeight(int index) const
         }
     }
     return h;
+}
+
+qreal CGraphicsEdit::getStrWidth(int index) const
+{
+    QString str = m_textList.at(index);
+    qreal w = 0;
+    for (int i = 0; i < str.length(); ++i) {
+        SCharFormat f = m_charFormats.at(index).at(i);
+        QFont font;
+        f.setFont(&font);
+        QFontMetricsF m(font);
+        w += m.width(str[i]);
+        if (i != str.length() - 1) {
+            w += f.letterSpacing;
+        }
+    }
+    return w;
 }
 
 qreal CGraphicsEdit::getColWidth(int index) const
@@ -1199,6 +1502,64 @@ qreal CGraphicsEdit::getColXPostion(int index) const
     }
 
     return x;
+}
+
+qreal CGraphicsEdit::getRowHeight(int index) const
+{
+    qreal h = 0;
+    QString s = m_textList.at(index);
+    if (s.isEmpty()) {
+        QFont font;
+        m_textFormat.setFont(&font);
+        QFontMetricsF m(font);
+        h = m.height();
+    } else {
+        int size = s.size() > m_charFormats.at(index).size() ? m_charFormats.at(index).size() : s.size();
+        for (int j = 0; j < size; ++j) {
+            SCharFormat f = m_charFormats.at(index).at(j);
+            QFont font;
+            f.setFont(&font);
+            QFontMetricsF m(font);
+            if (m.height() > h) {
+                h = m.height();
+            }
+        }
+    }
+    return h;
+}
+
+qreal CGraphicsEdit::getRowYPostion(int index) const
+{
+    qreal y = 0;
+    for (int i = 0; i <= index; ++i) {
+        QString s = m_textList.at(i);
+        if (s.isEmpty()) {
+            QFont font;
+            m_textFormat.setFont(&font);
+            QFontMetricsF m(font);
+            qreal h = m.height();
+            y += h;
+        } else {
+            qreal h = 0;
+            int size = s.size() > m_charFormats.at(i).size() ? m_charFormats.at(i).size() : s.size();
+            for (int j = 0; j < size; ++j) {
+                SCharFormat f = m_charFormats.at(i).at(j);
+                QFont font;
+                f.setFont(&font);
+                QFontMetricsF m(font);
+                if (m.height() > h) {
+                    h = m.height();
+                }
+            }
+            y += h;
+        }
+    }
+
+    if (m_cols > 1) {
+        y += (m_cols - 1)*m_columnSpacing;
+    }
+
+    return y;
 }
 
 void CGraphicsEdit::onFontChanged(const QString& text)
@@ -1375,6 +1736,17 @@ void CGraphicsEdit::setLetterSpacing(qreal spacing)
     scene()->update();
 }
 
+void CGraphicsEdit::setTextOriection(TextOriection oriection)
+{
+    m_oriection = oriection;
+    if (oriection == TextVertical) {
+        m_alignment = AlignmentTop;
+    } else {
+        m_alignment = AlignmentLeft;
+    }
+    scene()->update();
+}
+
 void CGraphicsEdit::onColorSelected(const QColor &color)
 {
     if (!m_selectedRegion->selected()) {
@@ -1466,6 +1838,6 @@ void CGraphicsEdit::setText(const QString& text)
         }
         QTextBlockFormat blockFormat = cursor.blockFormat();
         m_columnSpacing = blockFormat.lineHeight();
-        m_repaint = true;
+        scene()->update();
     } while(0);
 }
