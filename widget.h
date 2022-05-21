@@ -25,6 +25,7 @@ public slots:
     void onRowSpaceChanged(const QString& text);
     void onaligentchanged(const QString& text);
     void onLetterSpaceChanged(const QString& text);
+    void onDirectionChanged(const QString& text);
 private:
     QFontComboBox* fontComboBox;
     QPushButton*   colorBtn;
@@ -38,6 +39,7 @@ private:
     QComboBox*     aligentComboBox;
     QComboBox*     rowspacingComboBox;
     QComboBox*     letterspacingComboBox;
+    QComboBox*     directionComboBox;
     CGraphicsEdit* textEdit;
 };
 
