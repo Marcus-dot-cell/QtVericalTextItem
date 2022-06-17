@@ -824,6 +824,7 @@ void CGraphicsEdit::onTimeout()
 
 bool CGraphicsEdit::sceneEvent(QEvent *event)
 {
+    qDebug() << "sceneEvent: " << event->type();
     QEvent::Type t = event->type();
     if (t == QEvent::KeyPress || t == QEvent::KeyRelease) {
         int k = ((QKeyEvent *)event)->key();
@@ -1397,14 +1398,19 @@ void CGraphicsEdit::updateData(const QStringList& sl, int cols, int pos, int cur
         }
     }
     scene()->update();
-    update();
 }
 
 void CGraphicsEdit::setAlignment(TextAlignment d)
 {
+    if (m_oriection == TextVertical) {
+        if (d > AlignmentBottom)
+            return;
+    } else {
+        if (d < AlignmentLeft)
+            return;
+    }
     m_alignment = d;
     scene()->update();
-    update();
 }
 
 qreal CGraphicsEdit::getStrHeight(int index) const

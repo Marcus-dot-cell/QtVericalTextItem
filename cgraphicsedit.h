@@ -52,7 +52,7 @@ class CGraphicsEdit : public QGraphicsObject
 public:
     //对齐方式
     enum TextAlignment{
-        AlignmentTop,
+        AlignmentTop = 0,
         AlignmentCenter,
         AlignmentBottom,
         AlignmentLeft,

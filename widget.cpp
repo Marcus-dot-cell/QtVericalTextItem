@@ -32,7 +32,7 @@ Widget::Widget(QWidget *parent)
     underlineCheckBox = new QCheckBox(tr("Underline"));
     strikeOutCheckBox = new QCheckBox(tr("StrikeOut"));
     aligentComboBox = new QComboBox();
-    aligentComboBox->addItems({"Top", "Center", "Bottom"});
+    aligentComboBox->addItems({"Top", "VCenter", "Bottom", "Left", "Right", "HCenter"});
     rowspacingComboBox = new QComboBox();
     rowspacingComboBox->addItems({"0", "6", "8", "9", "10", "20", "30", "40", "50", "60", "70", "80"});
     letterspacingComboBox = new QComboBox;
@@ -158,8 +158,7 @@ void Widget::onRowSpaceChanged(const QString& text)
 
 void Widget::onaligentchanged(const QString& text)
 {
-    int index = text == "Top" ? 0 : text == "Center" ? 1 : 2;
-    textEdit->setAlignment((CGraphicsEdit::TextAlignment)index);
+    textEdit->setAlignment((CGraphicsEdit::TextAlignment)aligentComboBox->currentIndex());
 }
 
 void Widget::onLetterSpaceChanged(const QString& text)
